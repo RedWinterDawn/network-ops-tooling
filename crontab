@@ -1,0 +1,8 @@
+#dcrontab to refresh siri.sh every min
+*/1 * * * * /Users/jive-noc/siri/siri.sh -update -config=myconfig
+
+#crontab -e to start
+
+#crontab -l to list active
+
+

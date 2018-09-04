@@ -1,0 +1,107 @@
+#!/bin/bash
+ 
+BR="bridge4"
+G2010="tap10"
+G2013="tap13"
+BR_exist="ifconfig $BR > /dev/null 2>&1"
+G2010_exist="ifconfig $G2010 > /dev/null 2>&1"
+G2013_exist="ifconfig $G2013 > /dev/null 2>&1"
+GNS3_run="ps aux | grep -v grep | grep GNS3.app > /dev/null 2>&1"
+ 
+# need to get root
+if [ ! "$EUID" -eq 0 ]; then
+        echo -e "\nWe need root to run this. Switching...\n"
+        sudo -A "$0" "$@"
+        exit $?
+fi
+ 
+eval $BR_exist
+ 
+if [ "$?" -eq 0 ]; then
+        echo -e "Found existing bridge. Destroying...\n"
+        ifconfig $BR destroy > /dev/null 2>&1
+        if [ ! "$?" -eq 0 ]; then
+                echo -e "Sorry, there was a problem destroying the bridge.\n"
+                exit 1
+        fi
+else
+        echo -e "No existing bridge found.\n"
+fi
+ 
+eval $GNS3_run
+ 
+if [ ! "$?" -eq 0 ]; then
+        echo -e "GNS3 isn't running. Aborting script...\n"
+        exit 1
+else
+        echo -e "Found GNS3 running.\n"
+fi
+ 
+eval $G2010_exist
+ 
+if [ ! "$?" -eq 0 ]; then
+        echo -e "$G2010 wasn't found. Is GNS3 running? If it is, connect $G2010 to a device.\n"
+        exit 1
+else
+        echo -e "$G2010 found. Checking for addressing...\n"
+        ifconfig $G2010 | grep 192.168.0.2 > /dev/null 2>&1
+        if [ "$?" -eq 1 ]; then
+                echo -e "$G2010 is not currently addressed. Addressing...\n"
+                ifconfig $G2010 192.168.0.2 netmask 255.255.255.248 192.168.0.7 > /dev/null 2>&1
+                #ifconfig $G2010
+        else
+                echo -e "$G2010 is already addressed.\n"
+                #ifconfig $G2010
+        fi
+fi
+ 
+eval $G2013_exist
+ 
+if [ ! "$?" -eq 0 ]; then
+        echo -e "$G2013 wasn't found. Is GNS3 running? If it is, connect $G2013 to a device.\n"
+        exit 1
+else
+        echo -e "$G2013 found. Checking for addressing...\n"
+        ifconfig $G2013 | grep 192.168.0.3 > /dev/null 2>&1
+        if [ "$?" -eq 1  ]; then
+                echo -e "$G2013 is not currently addressed. Addressing...\n"
+                ifconfig $G2013 192.168.0.3 netmask 255.255.255.248 192.168.0.7 > /dev/null 2>&1
+                #ifconfig $G2013
+        else
+                echo -e "$G2013 is already addressed.\n"
+                #ifconfig $G2013
+        fi
+fi
+ 
+eval $G2010_exist
+G2010_exist=$?
+eval $G2013_exist
+G2013_exist=$?
+ 
+if [ "$G2010_exist" -eq 0 ] && [ "$G2013_exist" -eq 0 ]; then
+        echo -e "Creating bridge device...\n"
+        ifconfig $BR create > /dev/null 2>&1
+        if [ "$?" -eq 0 ]; then
+                echo -e "Bridge device successfully created. Adding tap interfaces...\n"
+                ifconfig $BR addm $G2010 > /dev/null 2>&1
+                if [ ! "$?" -eq 0 ]; then
+                        echo -e "Error adding $G2010 to $BR.\n"
+                        exit 1
+                else
+                        echo -e "$G2010 successfully added to $BR\n"
+                fi
+                ifconfig $BR addm $G2013 > /dev/null 2>&1
+                if [ ! "$?" -eq 0 ]; then
+                        echo -e "Error adding $G2013 to $BR.\n"
+                        exit 1
+                else
+                        echo -e "$G2013 successfully added to $BR\n"
+                fi
+        else
+                echo -e "Error creating bridge device.\n"
+                exit 1
+        fi
+else
+        echo -e "Tap devices don't exist!? Insanity.\n"
+        exit 1
+fi
